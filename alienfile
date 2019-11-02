@@ -1,11 +1,93 @@
 use alienfile;
-plugin 'PkgConfig' => 'libfoo';
+use Config;
+
+plugin 'Probe::CommandLine' => (
+  command => 'go',
+  args    => 'version',
+);
+
 share {
+
+  my $arch;
+
+  if($^O eq 'linux')
+  {
+    my @matrix = (
+      [ qr/x86_64/    => 'linux-amd64'   ],
+      [ qr/i[3456]86/ => 'linux-386'     ],
+      [ qr/armv6l/    => 'linux-arm6l'   ],
+      [ qr/arm.*64/   => 'linux-arm64'   ],
+      [ qr/ppc.*64/   => 'linux-ppc64le' ],
+      [ qr/s390x/     => 'linux-s390x'   ],
+    );
+    foreach my $line (@matrix)
+    {
+      if($Config{archname} =~ $line->[0])
+      {
+        $arch = $line->[1];
+        last;
+      }
+    }
+    unless($arch)
+    {
+      print "Unknown Linux arch\n";
+      exit;
+    }
+  }
+  elsif($^O eq 'darwin')
+  {
+    $arch = 'darwin-amd64';
+  }
+  elsif($^O eq 'freebsd')
+  {
+    my @matrix = (
+      [ qr/amd64/     => 'freebsd-amd64' ],
+      [ qr/i[3456]86/ => 'freebsd-386'   ],
+    );
+    foreach my $line (@matrix)
+    {
+      if($Config{archname} =~ $line->[0])
+      {
+        $arch = $line->[1];
+        last;
+      }
+    }
+    unless($arch)
+    {
+      print "Unknown Linux arch\n";
+      exit;
+    }
+  }
+  else
+  {
+    print "Unsupported platform\n";
+    exit;
+  }
+
   plugin Download => (
-    url => 'http://...',
-    filter => qr/*\.tar\.gz$/,
+    url => 'https://golang.org/dl/',
+    filter => qr/go([0-9\.]+)\.$arch\.tar\.gz$/,
     version => qr/([0-9\.]+)/,
   );
+
   plugin Extract => 'tar.gz';
-  plugin 'Build::Autoconf';
-}
+
+  build [
+    'cp -r * %{.install.prefix}',
+    'rm -rf %{.install.prefix}/doc',
+    'rm -rf %{.install.prefix}/src',
+    'rm -rf %{.install.prefix}/misc',
+  ];
+
+  gather sub {
+    my($build) = @_;
+    $build->runtime_prop->{version} = 'unknown';
+  };
+};
+
+sys {
+  gather sub {
+    my($build) = @_;
+    $build->runtime_prop->{version} = 'unknown';
+  };
+};
