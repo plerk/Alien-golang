@@ -8,6 +8,8 @@ plugin 'Probe::CommandLine' => (
 
 share {
 
+  requires 'Archive::Tar' => '1.76';
+
   my $arch;
 
   if($^O eq 'linux')
